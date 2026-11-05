@@ -1,0 +1,66 @@
+EVA – Bibliothèque YouTube Multi Player v0.2
+
+FICHIERS
+- index.html : application web
+- videos.json : bibliothèque des enregistrements
+- LISEZ-MOI.txt : ce guide
+
+TEST LOCAL
+1. Placez-vous dans le dossier contenant index.html et videos.json.
+2. Ouvrez PowerShell/Terminal dans ce dossier.
+3. Lancez : py -m http.server 8000
+   (ou : python -m http.server 8000)
+4. Ouvrez http://localhost:8000 dans Chrome.
+5. Le lecteur charge les enregistrements du fichier videos.json.
+
+FORMAT DU JSON
+{
+  "recordings": [
+    {
+      "title": "Titre du match",
+      "videos": [
+        {"name": "Caméra 1", "url": "https://www.youtube.com/watch?v=ID"},
+        {"name": "Caméra 2", "url": "https://youtu.be/ID"}
+      ]
+    }
+  ]
+}
+- Ajoutez autant d'objets dans "recordings" que nécessaire.
+- Chaque objet peut contenir de 1 à plusieurs vidéos.
+- Retirez une vidéo en supprimant son objet de la liste "videos".
+- Retirez un enregistrement en supprimant son objet de "recordings".
+
+MODIFIER DEPUIS L'INTERFACE
+1. Ouvrez « Gestion des replays ».
+2. Ajoutez/modifiez les titres et les liens, ajoutez/retirez des vidéos ou enregistrements.
+3. Cliquez sur « Exporter videos.json ».
+4. Remplacez le fichier videos.json du dépôt GitHub par celui exporté.
+5. Validez le commit. GitHub Pages republiera le site.
+
+PUBLICATION GITHUB PAGES
+1. Connectez-vous à GitHub et créez un nouveau dépôt, par exemple eva-replays.
+2. Pour une bibliothèque destinée au public, choisissez un dépôt Public.
+3. Ajoutez index.html et videos.json à la racine du dépôt (pas dans un sous-dossier).
+4. Ouvrez Settings > Pages.
+5. Dans Build and deployment, choisissez Deploy from a branch.
+6. Choisissez la branche main et le dossier /(root), puis Save.
+7. Attendez la publication. L'adresse sera du type https://VOTRE-PSEUDO.github.io/eva-replays/
+8. Partagez cette adresse.
+
+MISE À JOUR FUTURE DE videos.json
+Méthode simple depuis le site :
+1. Ouvrez votre site et cliquez « Gestion des replays ».
+2. Modifiez la bibliothèque puis cliquez « Exporter videos.json ».
+3. Ouvrez le dépôt GitHub > fichier videos.json > bouton crayon Edit.
+4. Remplacez tout le contenu par le contenu du fichier exporté (ouvrez-le avec le Bloc-notes, Ctrl+A, Ctrl+C).
+5. Cliquez « Commit changes ».
+6. Attendez une à quelques minutes et rechargez le site. Si l'ancien JSON persiste, faites Ctrl+F5.
+
+IMPORTANT
+- Le panneau de gestion n'est pas protégé par mot de passe. Il permet seulement de préparer/exporter un JSON dans le navigateur ; il ne peut pas publier directement sur GitHub. Les visiteurs peuvent donc voir ce panneau, mais leurs changements ne modifient pas le site public.
+- Pour empêcher les visiteurs de consulter les liens YouTube, il faudrait une vraie interface d'administration avec authentification et un stockage sécurisé. Le JSON publié est public.
+- Les vidéos non répertoriées ne sont pas privées : toute personne ayant un lien peut les regarder.
+- Dans YouTube Studio, vérifiez que l'intégration est autorisée.
+- Les restrictions d'âge, de territoire, droits d'auteur ou paramètres YouTube peuvent empêcher la lecture.
+- La synchronisation est approximative : YouTube ne garantit pas une synchronisation parfaite entre plusieurs lecteurs.
+- La lecture simultanée de nombreuses vidéos sollicite fortement le PC et la connexion.
