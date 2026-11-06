@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>EVA – Bibliothèque de replays</title>
+<title>EVA – Lecteur de replays</title>
 <style>
 :root{color-scheme:dark;--bg:#101318;--panel:#1a2029;--panel2:#242d39;--line:#354151;--text:#f3f6fa;--muted:#aab5c3;--accent:#3997f5;--green:#62d6a3;--red:#ff7c85}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Arial,sans-serif}
@@ -32,7 +32,6 @@ select,input,textarea{background:#0e1218;border:1px solid var(--line);border-rad
 .timeline{display:flex;align-items:center;gap:9px;width:100%}.timeline input{flex:1;min-width:80px;accent-color:var(--accent)}
 .time{min-width:78px;text-align:center;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .help{margin:10px 2px;line-height:1.6}
-.config{display:none}.config.open{display:block}.config h2{font-size:16px;margin:0 0 5px}.config p{font-size:12px;color:var(--muted);margin:0 0 12px}
 .record-editor{border:1px solid var(--line);border-radius:10px;padding:12px;margin:12px 0;background:#141a22}
 .record-editor-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}.record-editor-head input{flex:1;min-width:120px}
 .video-row{display:grid;grid-template-columns:minmax(110px,180px) minmax(180px,1fr) auto;gap:8px;margin:7px 0}
@@ -44,24 +43,11 @@ select,input,textarea{background:#0e1218;border:1px solid var(--line);border-rad
 </head>
 <body>
 <header>
- <div class="brand"><div class="logo">E</div><div><h1>EVA · Bibliothèque de replays</h1><div class="sub">Lecteur multi-vidéos YouTube</div></div></div>
- <button id="adminToggle">⚙ Gestion des replays</button>
+ <div class="brand"><div class="logo">E</div><div><h1>EVA · Bibliothèque de replays</h1><div class="sub">Lecteur multi-vidéos YouTube · consultation uniquement</div></div></div>
+ <span class="sub">Consultation des replays</span>
 </header>
 <main>
- <section id="adminPanel" class="panel config">
-  <h2>Gestion de la bibliothèque</h2>
-  <p>Ajoute autant d'enregistrements que nécessaire, avec un titre et autant de liens YouTube que tu le souhaites. Cette interface prépare un fichier JSON : elle ne publie pas les changements sur GitHub toute seule.</p>
-  <div id="editor"></div>
-  <div class="config-actions">
-   <button class="primary" id="addRecording">＋ Ajouter un enregistrement</button>
-   <button id="exportJson">⬇ Exporter videos.json</button>
-   <label><button type="button" id="importButton">Importer videos.json</button><input id="importFile" type="file" accept="application/json" hidden></label>
-   <button id="loadPublished">Recharger la version publiée</button>
-  </div>
-  <p style="margin-top:12px">Après export, remplace le fichier <code>videos.json</code> dans ton dépôt GitHub et valide la modification. Le site se mettra à jour automatiquement après la publication GitHub Pages.</p>
- </section>
-
- <section class="panel selector">
+<section class="panel selector">
   <label for="recordingSelect">CHOISIR UN ENREGISTREMENT</label>
   <div class="toprow">
    <select id="recordingSelect" disabled><option>Chargement…</option></select>
@@ -96,7 +82,7 @@ function say(message,kind=''){statusEl.textContent=message;statusEl.className='s
 function fmt(value){let s=Math.max(0,Math.floor(Number(value)||0));return [Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(x=>String(x).padStart(2,'0')).join(':')}
 function extractVideoId(raw){try{let u=new URL(String(raw).trim()),host=u.hostname.toLowerCase(),parts=u.pathname.split('/').filter(Boolean);if(host==='youtu.be'||host.endsWith('.youtu.be'))return parts[0]||null;if(host.includes('youtube.com')){if(u.pathname==='/watch')return u.searchParams.get('v');if(['embed','shorts','live','v'].includes(parts[0]))return parts[1]||null}}catch(e){}return null}
 function normalizeLibrary(data){
- let records=Array.isArray(data)?data:(data&&Array.isArray(data.recordings)?data.recordings:(data&&Array.isArray(data.videos)?[{title:'Enregistrement importé',videos:data.videos}]:[]));
+ let records=Array.isArray(data)?data:(data&&Array.isArray(data.recordings)?data.recordings:[]);
  return records.map((r,i)=>({title:String(r.title||`Enregistrement ${i+1}`),videos:(Array.isArray(r.videos)?r.videos:[]).map((v,j)=>typeof v==='string'?{name:`Caméra ${j+1}`,url:v}:{name:String(v.name||`Caméra ${j+1}`),url:String(v.url||'')}).filter(v=>v.url.trim())})).filter(r=>r.videos.length>0);
 }
 function destroyPlayers(){stopSync();players.forEach(p=>{try{if(p&&p.destroy)p.destroy()}catch(e){}});players=[];ready=0;audio=-1;activeTile=-1;grid.classList.remove('focus');$('mosaic').disabled=true;audioSelect.innerHTML='<option value="-1">Aucun</option>';audioSelect.disabled=true;setPlaybackControls(false);$('current').textContent='00:00:00';$('duration').textContent='00:00:00';$('seek').value=0;$('seek').max=1000}
@@ -106,27 +92,6 @@ function renderRecordingMenu(){
  if(!library.length){sel.disabled=true;let o=document.createElement('option');o.textContent='Aucun enregistrement disponible';sel.append(o);$('videoCount').textContent='';return}
  library.forEach((r,i)=>{let o=document.createElement('option');o.value=i;o.textContent=r.title;sel.append(o)});
  sel.disabled=false;if(currentRecording<0||currentRecording>=library.length)currentRecording=0;sel.value=String(currentRecording);
-}
-function renderEditor(){
- const host=$('editor');host.innerHTML='';
- if(!library.length){let p=document.createElement('p');p.className='muted';p.textContent='Aucun enregistrement dans la bibliothèque. Ajoute-en un pour commencer.';host.append(p)}
- library.forEach((rec,ri)=>{
-  const card=document.createElement('div');card.className='record-editor';
-  const head=document.createElement('div');head.className='record-editor-head';
-  const title=document.createElement('input');title.type='text';title.placeholder='Titre, ex. KAGE vs LEX – 12-10-2026';title.value=rec.title;title.setAttribute('aria-label','Titre de l’enregistrement');title.addEventListener('input',()=>{rec.title=title.value;renderRecordingMenu()});
-  const removeRec=document.createElement('button');removeRec.className='danger';removeRec.textContent='Supprimer cet enregistrement';removeRec.onclick=()=>{if(confirm(`Supprimer « ${rec.title} » de la configuration ?`)){library.splice(ri,1);if(currentRecording>=library.length)currentRecording=library.length-1;renderEditor();renderRecordingMenu();if(library.length)selectRecording(Math.max(0,currentRecording));else{destroyPlayers();grid.innerHTML='';showEmpty('Aucun enregistrement. Ouvre la gestion des replays pour en ajouter.')}}};
-  head.append(title,removeRec);card.append(head);
-  const list=document.createElement('div');
-  rec.videos.forEach((video,vi)=>{
-   const row=document.createElement('div');row.className='video-row';
-   const name=document.createElement('input');name.value=video.name;name.placeholder=`Caméra ${vi+1}`;name.setAttribute('aria-label','Nom de la vidéo');name.oninput=()=>video.name=name.value;
-   const url=document.createElement('input');url.type='url';url.value=video.url;url.placeholder='Lien YouTube';url.setAttribute('aria-label','Lien YouTube');url.oninput=()=>video.url=url.value;
-   const remove=document.createElement('button');remove.className='danger';remove.textContent='Retirer';remove.onclick=()=>{rec.videos.splice(vi,1);renderEditor()};
-   row.append(name,url,remove);list.append(row);
-  });
-  const addVideo=document.createElement('button');addVideo.textContent='＋ Ajouter un lien vidéo';addVideo.onclick=()=>{rec.videos.push({name:`Caméra ${rec.videos.length+1}`,url:''});renderEditor()};
-  card.append(list,addVideo);host.append(card);
- });
 }
 function showEmpty(message){grid.innerHTML='';let e=document.createElement('div');e.className='empty';e.textContent=message;grid.append(e);$('videoCount').textContent=''}
 function buildTiles(recording){
@@ -180,23 +145,11 @@ function startSync(){stopSync();syncTimer=setInterval(()=>{
  },2500)}
 function stopSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null}}
 function selectRecording(index){if(index<0||index>=library.length)return;currentRecording=index;renderRecordingMenu();showMosaic();createPlayers()}
-function parseImported(data){return normalizeLibrary(data)}
 async function loadPublished(){
  say('Lecture de videos.json…');
- try{const response=await fetch(API_URL+'?v='+Date.now(),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();library=normalizeLibrary(data);currentRecording=library.length?0:-1;renderEditor();renderRecordingMenu();if(library.length)selectRecording(0);else{destroyPlayers();showEmpty('Aucun enregistrement publié.')}say(`${library.length} enregistrement(s) chargé(s).`,'good')}
- catch(e){say('Impossible de charger videos.json. Vérifie que le fichier est publié à côté de index.html.','bad');renderEditor();renderRecordingMenu();showEmpty('Bibliothèque indisponible.')}
+ try{const response=await fetch(API_URL+'?v='+Date.now(),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();library=normalizeLibrary(data);currentRecording=library.length?0:-1;renderRecordingMenu();if(library.length)selectRecording(0);else{destroyPlayers();showEmpty('Aucun enregistrement publié.')}say(`${library.length} enregistrement(s) chargé(s).`,'good')}
+ catch(e){say('Impossible de charger videos.json. Vérifie que le fichier est publié à côté de index.html.','bad');renderRecordingMenu();showEmpty('Bibliothèque indisponible.')}
 }
-$('adminToggle').onclick=()=>$('adminPanel').classList.toggle('open');
-$('addRecording').onclick=()=>{library.push({title:`Nouvel enregistrement ${library.length+1}`,videos:[{name:'Caméra 1',url:''}]});renderEditor();renderRecordingMenu()};
-$('exportJson').onclick=()=>{
- const cleaned=library.map(r=>({title:r.title.trim(),videos:r.videos.filter(v=>v.url.trim()).map((v,i)=>({name:(v.name||`Caméra ${i+1}`).trim(),url:v.url.trim()}))})).filter(r=>r.title&&r.videos.length);
- const blob=new Blob([JSON.stringify({recordings:cleaned},null,2)],{type:'application/json'}),a=document.createElement('a');
- a.href=URL.createObjectURL(blob);a.download='videos.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
- say(`Export terminé : ${cleaned.length} enregistrement(s). Remplace videos.json sur GitHub.`,'good');
-};
-$('importButton').onclick=()=>$('importFile').click();
-$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const data=JSON.parse(await f.text());library=parseImported(data);currentRecording=library.length?0:-1;renderEditor();renderRecordingMenu();if(library.length)selectRecording(0);else{destroyPlayers();showEmpty('Aucun enregistrement valide dans ce JSON.')}say('Configuration importée dans l’éditeur. Pense à exporter pour sauvegarder.','good')}catch(err){say('Fichier JSON invalide.','bad')}e.target.value=''};
-$('loadPublished').onclick=loadPublished;
 $('recordingSelect').onchange=()=>selectRecording(Number($('recordingSelect').value));
 $('start').onclick=playAll;$('pause').onclick=pauseAll;$('stop').onclick=stopAll;$('mosaic').onclick=showMosaic;
 audioSelect.onchange=()=>{audio=Number(audioSelect.value);applyAudio()};
