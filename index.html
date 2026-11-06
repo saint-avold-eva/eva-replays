@@ -30,9 +30,14 @@ select,input,textarea{background:#0e1218;border:1px solid var(--line);border-rad
 .grid.focus{grid-template-columns:minmax(0,1fr)}.grid.focus .tile{display:none}.grid.focus .tile.active{display:block}
 .grid.focus .tile.active .playerbox{height:min(78vh,1000px);aspect-ratio:auto}.grid.focus .tile.active .playerbox>div,.grid.focus .tile.active iframe{height:100%}
 /* Plein écran : colonnes / taille calculées dynamiquement en JS (layoutFullscreen) selon le nombre de vidéos et l'écran */
-.grid:fullscreen,.grid.focus:fullscreen{width:100vw;height:100vh;overflow:hidden;padding:var(--fs-pad,10px);gap:var(--fs-gap,8px);background:var(--bg);border:0;border-radius:0;grid-template-columns:repeat(var(--fs-cols,1),var(--fs-w,minmax(0,1fr)));justify-content:center;align-content:center}
+.grid:fullscreen,.grid.focus:fullscreen{position:relative;width:100vw;height:100vh;overflow:hidden;padding:var(--fs-pad,10px);padding-bottom:86px;gap:var(--fs-gap,8px);background:var(--bg);border:0;border-radius:0;grid-template-columns:repeat(var(--fs-cols,1),var(--fs-w,minmax(0,1fr)));justify-content:center;align-content:center}
 .grid:fullscreen .playerbox,.grid.focus:fullscreen .tile.active .playerbox{height:var(--fs-vh,auto);aspect-ratio:auto;max-height:none}
 .grid:fullscreen .tilehead{font-size:13px}
+.fullscreen-controls{display:none}
+.grid:fullscreen .fullscreen-controls{position:absolute;display:flex;align-items:center;gap:9px;left:0;right:0;bottom:0;z-index:20;padding:12px 16px;background:rgba(21,26,34,.97);border-top:1px solid var(--line);box-shadow:0 -5px 18px rgba(0,0,0,.35)}
+.fullscreen-controls .timeline{flex:1;min-width:180px}
+.fullscreen-controls input{min-width:50px}
+@media(max-width:650px){.grid:fullscreen{padding-bottom:112px}.grid:fullscreen .fullscreen-controls{flex-wrap:wrap;padding:8px}.fullscreen-controls .timeline{flex-basis:100%;order:2}}
 .grid:fullscreen .tilehead button{font-size:12px;padding:5px 10px}
 .timeline{display:flex;align-items:center;gap:9px;width:100%}.timeline input{flex:1;min-width:80px;accent-color:var(--accent)}
 .time{min-width:78px;text-align:center;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
@@ -115,6 +120,31 @@ function buildTiles(recording){
 }
 function focusTile(i){activeTile=i;grid.classList.add('focus');document.querySelectorAll('.tile').forEach((el,n)=>el.classList.toggle('active',n===i));$('mosaic').disabled=false;layoutFullscreen()}
 function showMosaic(){grid.classList.remove('focus');document.querySelectorAll('.tile').forEach(el=>el.classList.remove('active'));activeTile=-1;layoutFullscreen()}
+
+function ensureFullscreenControls(){
+ let bar=grid.querySelector('.fullscreen-controls');
+ if(bar)return bar;
+ bar=document.createElement('div');bar.className='fullscreen-controls';
+ bar.innerHTML=`<button type="button" class="primary" data-action="play">▶ Lecture</button>
+ <button type="button" data-action="pause">Ⅱ Pause</button>
+ <div class="timeline"><span class="time" data-current>00:00:00</span>
+ <input data-seek type="range" min="0" max="1000" value="0" disabled>
+ <span class="time" data-duration>00:00:00</span></div>`;
+ bar.querySelector('[data-action="play"]').onclick=playAll;
+ bar.querySelector('[data-action="pause"]').onclick=pauseAll;
+ const range=bar.querySelector('[data-seek]');
+ range.oninput=()=>{seeking=true;bar.querySelector('[data-current]').textContent=fmt(range.value)};
+ range.onchange=()=>{seekAll(Number(range.value));seeking=false};
+ grid.append(bar);
+ return bar;
+}
+function updateFullscreenTimeline(current,duration){
+ const bar=grid.querySelector('.fullscreen-controls');if(!bar)return;
+ const range=bar.querySelector('[data-seek]');
+ if(duration>0){range.max=Math.floor(duration);bar.querySelector('[data-duration]').textContent=fmt(duration)}
+ if(!seeking){range.value=Math.floor(current);bar.querySelector('[data-current]').textContent=fmt(current)}
+}
+
 function createPlayers(){
  destroyPlayers();
  if(!apiReady)return;
@@ -122,7 +152,7 @@ function createPlayers(){
  const ids=rec.videos.map(v=>extractVideoId(v.url));
  const invalid=ids.findIndex(id=>!id);
  if(invalid!==-1){say(`Lien YouTube invalide pour « ${rec.videos[invalid].name||`Caméra ${invalid+1}`} ». Corrige videos.json.`,'bad');showEmpty('Un lien YouTube semble invalide.');return}
- buildTiles(rec);$('fullscreenMosaic').disabled=false;players=new Array(ids.length).fill(null);say(`Chargement de ${ids.length} vidéo(s)…`);
+ buildTiles(rec);ensureFullscreenControls();$('fullscreenMosaic').disabled=false;players=new Array(ids.length).fill(null);say(`Chargement de ${ids.length} vidéo(s)…`);
  ids.forEach((id,i)=>{
   players[i]=new YT.Player(`yt-${i}`,{width:'100%',height:'100%',videoId:id,playerVars:{autoplay:0,controls:1,playsinline:1,rel:0,enablejsapi:1,origin:location.origin},events:{
    onReady:()=>{players[i].mute();players[i].setVolume(0);ready++;if(ready===ids.length)allPlayersReady()},
@@ -135,18 +165,20 @@ function allPlayersReady(){
  const count=players.length;setPlaybackControls(true);audioSelect.disabled=false;audioSelect.innerHTML='<option value="-1">Aucun</option>';
  for(let i=0;i<count;i++){let o=document.createElement('option');o.value=i;o.textContent=library[currentRecording].videos[i].name||`Caméra ${i+1}`;audioSelect.append(o)}
  recordingDuration=players[0].getDuration()||0;$('duration').textContent=fmt(recordingDuration);$('seek').max=Math.max(1,Math.floor(recordingDuration));
+  updateFullscreenTimeline(0,recordingDuration);
  say(`${count} vidéo(s) prête(s). Clique sur Démarrer.`,'good');
 }
 function applyAudio(){players.forEach((p,i)=>{if(!p)return;if(i===audio){p.unMute();p.setVolume(100);$(`sound-${i}`).textContent='● SON'}else{p.mute();$(`sound-${i}`).textContent=''}});audioSelect.value=String(audio)}
 function playAll(){if(!players.length||ready!==players.length)return;players.forEach(p=>{p.mute();p.playVideo()});applyAudio();say('Demande de lecture envoyée à toutes les vidéos.','good');startSync()}
 function pauseAll(){players.forEach(p=>p&&p.pauseVideo());say('Pause générale.');stopSync()}
-function stopAll(){players.forEach(p=>p&&p.stopVideo());say('Lecture arrêtée.');stopSync();$('seek').value=0;$('current').textContent='00:00:00'}
-function seekAll(t){players.forEach(p=>p&&p.seekTo(Math.max(0,t),true));$('current').textContent=fmt(t)}
+function stopAll(){players.forEach(p=>p&&p.stopVideo());say('Lecture arrêtée.');stopSync();$('seek').value=0;$('current').textContent='00:00:00';updateFullscreenTimeline(0,recordingDuration)}
+function seekAll(t){players.forEach(p=>p&&p.seekTo(Math.max(0,t),true));$('current').textContent=fmt(t);updateFullscreenTimeline(t,recordingDuration)}
 function startSync(){stopSync();syncTimer=setInterval(()=>{
  if(!players[0]||players[0].getPlayerState()!==YT.PlayerState.PLAYING)return;
  const master=players[0].getCurrentTime(),d=players[0].getDuration()||0;
  if(d>0&&d!==Number($('seek').max)){$('seek').max=Math.floor(d);$('duration').textContent=fmt(d)}
  if(!seeking){$('current').textContent=fmt(master);$('seek').value=Math.floor(master)}
+  updateFullscreenTimeline(master,d||recordingDuration);
  for(let i=1;i<players.length;i++){const p=players[i];if(p&&p.getPlayerState()===YT.PlayerState.PLAYING&&Math.abs(p.getCurrentTime()-master)>1.5)p.seekTo(master,true)}
  },2500)}
 function stopSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null}}
@@ -159,7 +191,7 @@ async function loadPublished(){
 $('recordingSelect').onchange=()=>selectRecording(Number($('recordingSelect').value));
 $('start').onclick=playAll;$('pause').onclick=pauseAll;$('stop').onclick=stopAll;$('mosaic').onclick=showMosaic;
 $('fullscreenMosaic').onclick=async()=>{
- if(!document.fullscreenElement){showMosaic();try{await grid.requestFullscreen()}catch(e){say('Le plein écran n’est pas disponible sur ce navigateur.','bad')}}
+ if(!document.fullscreenElement){showMosaic();ensureFullscreenControls();try{await grid.requestFullscreen()}catch(e){say('Le plein écran n’est pas disponible sur ce navigateur.','bad')}}
  else if(document.fullscreenElement===grid){await document.exitFullscreen()}
 };
 function updateFullscreenButton(){const active=document.fullscreenElement===grid;$('fullscreenMosaic').textContent=active?'⛶ Quitter le plein écran':'⛶ Plein écran mosaïque';}
@@ -171,7 +203,7 @@ function layoutFullscreen(){
  const n=tiles.length;if(!n)return;
  const pad=n===1?0:10,gap=n===1?0:8;
  const head=tiles[0].querySelector('.tilehead')?.offsetHeight||36,border=4;
- const W=window.innerWidth-pad*2,H=window.innerHeight-pad*2;
+ const barHeight=86;const W=window.innerWidth-pad*2,H=window.innerHeight-pad*2-barHeight;
  let best={cols:1,w:0};
  for(let cols=1;cols<=n;cols++){
   const rows=Math.ceil(n/cols);
