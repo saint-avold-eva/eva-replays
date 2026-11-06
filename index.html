@@ -22,6 +22,12 @@ select,input,textarea{background:#0e1218;border:1px solid var(--line);border-rad
 .status.good{color:var(--green)}.status.bad{color:#ff9ca3}
 .toolbar{margin-top:12px}
 .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.grid:fullscreen{width:100vw;height:100vh;overflow:auto;align-content:start;padding:14px;background:var(--bg);grid-template-columns:repeat(4,minmax(0,1fr));border:0;border-radius:0}
+.grid:fullscreen .playerbox{max-height:calc((100vh - 100px) * .48)}
+.grid:fullscreen .tilehead{font-size:13px}
+.grid:fullscreen .tilehead button{font-size:12px;padding:5px 10px}
+@media(max-width:1150px){.grid:fullscreen{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.grid:fullscreen{grid-template-columns:1fr}}
 .tile{min-width:0;background:#050608;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .tilehead{min-height:34px;background:#1a2029;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;font-size:11px}
 .tilehead button{font-size:11px;padding:3px 8px}.tile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -60,6 +66,7 @@ select,input,textarea{background:#0e1218;border:1px solid var(--line);border-rad
   <button id="pause" disabled>Ⅱ Pause générale</button>
   <button id="stop" disabled>■ Arrêter</button>
   <button id="mosaic" disabled>▦ Retour mosaïque</button>
+  <button id="fullscreenMosaic" disabled>⛶ Plein écran mosaïque</button>
   <span class="spacer"></span><span id="status" class="status">Chargement de la bibliothèque…</span>
  </section>
  <section class="panel controls">
@@ -85,7 +92,7 @@ function normalizeLibrary(data){
  let records=Array.isArray(data)?data:(data&&Array.isArray(data.recordings)?data.recordings:[]);
  return records.map((r,i)=>({title:String(r.title||`Enregistrement ${i+1}`),videos:(Array.isArray(r.videos)?r.videos:[]).map((v,j)=>typeof v==='string'?{name:`Caméra ${j+1}`,url:v}:{name:String(v.name||`Caméra ${j+1}`),url:String(v.url||'')}).filter(v=>v.url.trim())})).filter(r=>r.videos.length>0);
 }
-function destroyPlayers(){stopSync();players.forEach(p=>{try{if(p&&p.destroy)p.destroy()}catch(e){}});players=[];ready=0;audio=-1;activeTile=-1;grid.classList.remove('focus');$('mosaic').disabled=true;audioSelect.innerHTML='<option value="-1">Aucun</option>';audioSelect.disabled=true;setPlaybackControls(false);$('current').textContent='00:00:00';$('duration').textContent='00:00:00';$('seek').value=0;$('seek').max=1000}
+function destroyPlayers(){stopSync();players.forEach(p=>{try{if(p&&p.destroy)p.destroy()}catch(e){}});players=[];ready=0;audio=-1;activeTile=-1;grid.classList.remove('focus');$('mosaic').disabled=true;$('fullscreenMosaic').disabled=true;audioSelect.innerHTML='<option value="-1">Aucun</option>';audioSelect.disabled=true;setPlaybackControls(false);$('current').textContent='00:00:00';$('duration').textContent='00:00:00';$('seek').value=0;$('seek').max=1000}
 function setPlaybackControls(enabled){['start','pause','stop','seek','back','forward'].forEach(id=>$(id).disabled=!enabled)}
 function renderRecordingMenu(){
  const sel=$('recordingSelect');sel.innerHTML='';
@@ -116,7 +123,7 @@ function createPlayers(){
  const ids=rec.videos.map(v=>extractVideoId(v.url));
  const invalid=ids.findIndex(id=>!id);
  if(invalid!==-1){say(`Lien YouTube invalide pour « ${rec.videos[invalid].name||`Caméra ${invalid+1}`} ». Corrige videos.json.`,'bad');showEmpty('Un lien YouTube semble invalide.');return}
- buildTiles(rec);players=new Array(ids.length).fill(null);say(`Chargement de ${ids.length} vidéo(s)…`);
+ buildTiles(rec);$('fullscreenMosaic').disabled=false;players=new Array(ids.length).fill(null);say(`Chargement de ${ids.length} vidéo(s)…`);
  ids.forEach((id,i)=>{
   players[i]=new YT.Player(`yt-${i}`,{width:'100%',height:'100%',videoId:id,playerVars:{autoplay:0,controls:1,playsinline:1,rel:0,enablejsapi:1,origin:location.origin},events:{
    onReady:()=>{players[i].mute();players[i].setVolume(0);ready++;if(ready===ids.length)allPlayersReady()},
@@ -152,6 +159,12 @@ async function loadPublished(){
 }
 $('recordingSelect').onchange=()=>selectRecording(Number($('recordingSelect').value));
 $('start').onclick=playAll;$('pause').onclick=pauseAll;$('stop').onclick=stopAll;$('mosaic').onclick=showMosaic;
+$('fullscreenMosaic').onclick=async()=>{
+ if(!document.fullscreenElement){showMosaic();try{await grid.requestFullscreen()}catch(e){say('Le plein écran n’est pas disponible sur ce navigateur.','bad')}}
+ else if(document.fullscreenElement===grid){await document.exitFullscreen()}
+};
+function updateFullscreenButton(){const active=document.fullscreenElement===grid;$('fullscreenMosaic').textContent=active?'⛶ Quitter le plein écran':'⛶ Plein écran mosaïque';}
+document.addEventListener('fullscreenchange',updateFullscreenButton);
 audioSelect.onchange=()=>{audio=Number(audioSelect.value);applyAudio()};
 $('seek').oninput=()=>{seeking=true;$('current').textContent=fmt($('seek').value)};
 $('seek').onchange=()=>{seekAll(Number($('seek').value));seeking=false};
