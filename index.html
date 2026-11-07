@@ -98,7 +98,7 @@ function normalizeLibrary(data){
  let records=Array.isArray(data)?data:(data&&Array.isArray(data.recordings)?data.recordings:[]);
  return records.map((r,i)=>({title:String(r.title||`Enregistrement ${i+1}`),videos:(Array.isArray(r.videos)?r.videos:[]).map((v,j)=>typeof v==='string'?{name:`Caméra ${j+1}`,url:v}:{name:String(v.name||`Caméra ${j+1}`),url:String(v.url||'')}).filter(v=>v.url.trim())})).filter(r=>r.videos.length>0);
 }
-function destroyPlayers(){stopSync();players.forEach(p=>{try{if(p&&p.destroy)p.destroy()}catch(e){}});players=[];ready=0;audio=-1;activeTile=-1;grid.classList.remove('focus');$('mosaic').disabled=true;$('fullscreenMosaic').disabled=true;audioSelect.innerHTML='<option value="-1">Aucun</option>';audioSelect.disabled=true;setPlaybackControls(false);$('current').textContent='00:00:00';$('duration').textContent='00:00:00';$('seek').value=0;$('seek').max=1000}
+function destroyPlayers(){stopSync();players.forEach(p=>{try{if(p&&p.destroy)p.destroy()}catch(e){}});players=[];ready=0;audio=-1;activeTile=-1;grid.classList.remove('focus');$('mosaic').disabled=true;$('fullscreenMosaic').disabled=true;audioSelect.innerHTML='<option value="-1">Aucun</option>';audioSelect.disabled=true;setPlaybackControls(false);const fsSeek=grid.querySelector('.fullscreen-controls [data-seek]');if(fsSeek){fsSeek.disabled=true;fsSeek.value=0;fsSeek.max=1;}$('current').textContent='00:00:00';$('duration').textContent='00:00:00';$('seek').value=0;$('seek').max=1000}
 function setPlaybackControls(enabled){['start','pause','stop','seek','back','forward'].forEach(id=>$(id).disabled=!enabled)}
 function renderRecordingMenu(){
  const sel=$('recordingSelect');sel.innerHTML='';
@@ -135,9 +135,12 @@ function ensureFullscreenControls(){
  bar.querySelector('[data-action="play"]').onclick=playAll;
  bar.querySelector('[data-action="pause"]').onclick=pauseAll;
  const range=bar.querySelector('[data-seek]');
- range.oninput=()=>{seeking=true;bar.querySelector('[data-current]').textContent=fmt(range.value)};
- const commitSeek=()=>{if(!seeking)return;seekAll(Number(range.value));seeking=false};
- range.onchange=commitSeek;range.onpointerup=commitSeek;range.onkeyup=e=>{if(e.key==='ArrowLeft'||e.key==='ArrowRight'||e.key==='Home'||e.key==='End')commitSeek()};
+ range.oninput=()=>{if(range.disabled)return;seeking=true;bar.querySelector('[data-current]').textContent=fmt(range.value)};
+ const commitSeek=()=>{if(range.disabled||!seeking)return;const target=Number(range.value);seeking=false;seekAll(target)};
+ range.addEventListener('change',commitSeek);
+ range.addEventListener('pointerup',commitSeek);
+ range.addEventListener('touchend',commitSeek,{passive:true});
+ range.addEventListener('keyup',e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key))commitSeek()});
  grid.append(bar);
  return bar;
 }
@@ -168,6 +171,8 @@ function allPlayersReady(){
  const count=players.length;setPlaybackControls(true);audioSelect.disabled=false;audioSelect.innerHTML='<option value="-1">Aucun</option>';
  for(let i=0;i<count;i++){let o=document.createElement('option');o.value=i;o.textContent=library[currentRecording].videos[i].name||`Caméra ${i+1}`;audioSelect.append(o)}
  recordingDuration=players[0].getDuration()||0;$('duration').textContent=fmt(recordingDuration);$('seek').max=Math.max(1,Math.floor(recordingDuration));
+  const fullscreenSeek=grid.querySelector('.fullscreen-controls [data-seek]');
+  if(fullscreenSeek){fullscreenSeek.disabled=false;fullscreenSeek.max=Math.max(1,Math.floor(recordingDuration));}
   updateFullscreenTimeline(0,recordingDuration);
  say(`${count} vidéo(s) prête(s). Clique sur Démarrer.`,'good');
 }
